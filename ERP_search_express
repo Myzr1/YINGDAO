@@ -1,0 +1,127 @@
+
+def main(args):
+    Getdata=GetData('表格','页数','根据原始单号')
+    list_search=read_excel(r'C:\Users\Administrator\Downloads\仅退款待匹配.xls')
+    df=Getdata.getting_all_data(list_search)
+    print(df)
+
+class GetData():
+
+    def __init__(self,table:str,page:str,search_type:str):
+        '''
+        window=旺店通窗口
+        tabel :str 旺店通表格元素 
+        page ：str 旺店通页数元素 
+        search_type：搜索的类型
+        '''
+        self.window=xbot.win32.get('旺店通ERP旗舰版')
+        self.table=table
+        self.page=page
+        self.search_type=search_type
+
+    def getting_all_data(self,list_search:list):
+        '''
+        list_search:搜索单号列表
+        '''
+        df_all=pandas.DataFrame()
+        #根据列表筛选
+        while True:
+            if list_search==[]:
+                break
+            #搜索
+            self.find_num(list_search[0:3000])
+            #合并
+            df_all=pandas.concat([df_all,self.getting_data()])
+            del list_search[0:3000]
+        return df_all
+
+    def getting_data(self):
+        '''此方法用于获取当前搜索项数据'''
+        df_total=pandas.DataFrame()
+        while True:
+            list_table=self.window.find(self.table).extract_table()
+            df=pandas.DataFrame(list_table[:-1])
+            df.columns=df.loc[0].tolist()
+            try:
+                df=df.drop([0,1])
+            except:
+                pass
+            df_total=pandas.concat([df_total,df])
+            if self.next_page()==False:
+                break
+        return df_total
+
+
+    def next_page(self):
+
+        element=self.window.find(self.page)
+        elements=element.children()
+            #列表元素  总记录:231 共5页 当前:第1页 已选中1条 1
+            #首页 
+            #上一页 3
+            #下一页 4
+            #末页 5
+            #跳转 7
+
+        index=elements[0].get_text()
+        #str int re 提取出数字1为总页数 2为当前页数
+        total_pages=int(re.findall('\d{1,}',index)[1])
+        current_number =int(re.findall('\d{1,}',index)[2])
+        if total_pages != current_number and total_pages!=0:
+            elements[4].click()
+            return True
+        else:
+            return False
+
+
+    def find_num(self,list_search:list):
+        '''
+        由外部传入经过截取的列表，3000以内
+        '''
+        image.hover('搜索',anchor=('topRight',-10,10))
+        #可能出现唤不起悬停框的情况 先点击判断是否出现，再移走悬停
+        if image.wait_appear(self.search_type,timeout=1)==False:
+            image.click('搜索',anchor=('topRight',-10,10))
+            if image.wait_appear(self.search_type,timeout=1)==False:
+                image.hover('搜索',anchor=('topRight',-10,-50))
+                image.hover('搜索',anchor=('topRight',-10,10))
+        image.click(self.search_type)
+        #点击确定下面输入
+        image.click('确定',anchor=('bottomRight',0,50))
+        str1='\n'.join([ str(i) for i in list_search])
+        #设置粘贴板内容
+        xbot.win32.clipboard.set_text(str1)
+        xbot.win32.send_keys('^{v}')
+        #点击搜索
+        image.click('确定',anchor=('bottomRight',0,0))
+        #可能出现找不到一些单号的情况
+        if image.wait_appear('取消',timeout=1):
+            image.click('取消')
+        #可能出现输入为空的情况,点击确定后关闭当前窗口
+        if image.wait_appear('确定空',timeout=0.5):
+            image.click('确定空')
+            image.click('窗口关闭',anchor=('topRight',0,0))
+
+#唤起类    
+class Arouse:
+    def __init__(self,current_page,first_step,second_step,third_step):
+        xbot.win32.get('旺店通ERP旗舰版')
+        self.current_page=current_page
+        self.first_step=first_step
+        self.second_step=second_step
+        self.third_step=third_step
+    
+    def arouse_page(self):
+        #判断页面是否在前页
+        if image.wait_appear(self.current_page,timeout=1) ==False:
+            #点击 第一步 即大图
+            image.click(self.first_step)
+            image.click(self.second_step)
+            image.click(self.third_step)
+        else:
+            image.click(self.current_page)
+
+def read_excel(excel_path):
+    df=pandas.read_excel(excel_path)
+    list1=df['订单编号'].tolist()
+    return list1
