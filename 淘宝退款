@@ -1,0 +1,28 @@
+def refull():
+
+  #获取退款编号列表
+  refund_num=Read_excel.read()
+  print(refund_num)
+  driver=xbot.web.get_active(mode='chrome')
+
+  for i in refund_num:
+      driver.find_by_xpath('//input[@placeholder="请填写退款编号"]').clipboard_input(i,delay_after=0.5)
+      #点击确定
+      driver.find_by_xpath("//div[@class='center button-item highlight']").click()
+      #判断是否为退款成功，是则下一个
+      button_status=driver.find_by_xpath("//span//font[@color='#2485D7']")
+      if button_status.get_text()=='退款成功':
+          continue
+      else:
+          #进入退款详情页
+          button_status.click(simulative=False)
+          new_driver=xbot.web.get_active(mode='chrome')
+
+          try:
+              new_driver.find_by_xpath("//span[contains(text(),'确认收货, 同意退款')]",timeout=2.5).click(simulative=False)
+          except:
+              print(i,'已退款')
+          else:
+              new_driver.find_by_xpath("//span[text()='同意退款']",timeout=5).click(simulative=False)
+
+          new_driver.close()
