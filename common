@@ -1,0 +1,124 @@
+# 使用提醒:
+# 1. xbot包提供软件自动化、数据表格、Excel、日志、AI等功能
+# 2. package包提供访问当前应用数据的功能，如获取元素、访问全局变量、获取资源文件等功能
+# 3. 当此模块作为流程独立运行时执行main函数
+# 4. 可视化流程中可以通过"调用模块"的指令使用此模块
+
+import xbot
+from xbot import print, sleep
+from .import package
+from .package import variables as glv
+import pandas
+import re
+
+def main(args):
+    pass
+
+
+
+#自定义错误
+class customException(Exception):
+    def __init__(self,Errorinfo):
+        self.Errorinfo = Errorinfo
+
+    def __str__(self):
+        return self.Errorinfo
+
+def inspect_ERP():
+    '''
+    检测ERP是否启动：
+    return 窗口
+    '''
+    try:
+        window=xbot.win32.get('旺店通ERP旗舰版',timeout=1)
+    except:
+        raise customException('ERP未打开')
+
+    return window
+
+
+def inspect_front(window):
+    #判断订单管理是否在前页
+    try:
+        xbot.win32.image.click('订单管理',timeout=1)
+        window.find(selector='清除').click()
+    except:
+        #没开启就点击开启
+        xbot.win32.image.click('销售',timeout=1)
+        xbot.win32.image.click('订单管理_into',timeout=1)
+        xbot.win32.image.click('订单管理F6',timeout=1)
+
+def filter_condition(window,condition):
+    '''
+    清除状态后，再选择常用搜索
+    '''
+    #右键在清除元素的-20元素上
+    window.find(selector='清除').click(button='right',anchor=('topLeft',-20,0))
+    #点击筛选条件
+    xbot.win32.image.click('常用搜索')
+    xbot.win32.image.click(condition)
+
+def data():
+    '''
+    获取数据
+    return dataframe
+
+    '''
+    window=xbot.win32.get('旺店通ERP旗舰版',timeout=1)
+    table='table'
+    '''此方法用于获取当前搜索项数据'''
+    df_total=pandas.DataFrame()
+    while True:
+        list_table=window.find(table).extract_table()
+        df=pandas.DataFrame(list_table[:-1])
+        df.columns=df.loc[0].tolist()
+        df=df.drop([0,1])
+        df_total=pandas.concat([df_total,df])
+        if next_page(window)==False:
+            break
+    print(df_total)
+    return df_total
+
+def concat_df(df,df1)->dict:
+    '''
+    合并了df了之后，
+    return 返回每个店铺的字典
+
+    '''
+    df=pandas.concat([df,df1])
+    dict_all={}
+    df1=df.groupby(['店铺'])
+    for i,j in df1:
+        print(i)
+        dict_all.update({i:j.loc[:,['原始单号']]['原始单号'].tolist()})
+    print(dict_all)
+    return dict_all
+
+
+def next_page(window)->bool:
+    '''
+    页面块元素：ERP中的页数元素
+    '''
+    element=window.find(selector='页数块元素')
+    elements=element.children()
+        #列表元素  总记录:231 共5页 当前:第1页 已选中1条 1
+        #首页 
+        #上一页 3
+        #下一页 4
+        #末页 5
+        #跳转 7
+
+    index=elements[0].get_text()
+    #str int re 提取出数字1为总页数 2为当前页数
+    total_pages=int(re.findall('\d{1,}',index)[1])
+    current_number =int(re.findall('\d{1,}',index)[2])
+
+    #可能出现数据为空的情况
+    if total_pages !=current_number:
+        elements[4].click(simulative=False)
+        return True
+    else:
+        return False
+
+    if total_pages ==0:
+        return False
